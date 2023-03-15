@@ -1,5 +1,9 @@
  import { mutableHandlers } from './baseHandlers'
  
+ /**
+  * WeakMap key 类型是object 指向obj
+  * WeakMap value  是一个Map对象 其中key是指定的属性 value是执行函数fn
+  */
  export const reactiveMap = new WeakMap<object, any>()
  
  export function reactive(target: object) {
