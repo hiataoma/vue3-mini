@@ -1,4 +1,5 @@
- import { mutableHandlers } from './baseHandlers'
+ import { isObject } from '@vue/shared'
+import { mutableHandlers } from './baseHandlers'
  
  /**
   * WeakMap key 类型是object 指向obj
@@ -26,3 +27,16 @@
 
     return proxy
  }
+
+ /**
+ * 将指定数据变为 reactive 数据
+ */
+export const toReactive = <T extends unknown>(value: T): T =>
+   isObject(value) ? reactive(value as object) : value
+
+/**
+* 判断一个数据是否为 Reactive
+*/
+// export function isReactive(value): boolean {
+// return !!(value && value[ReactiveFlags.IS_REACTIVE])
+// }

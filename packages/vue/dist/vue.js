@@ -1,6 +1,23 @@
 var Vue = (function (exports) {
     'use strict';
 
+    /**
+     * 判断是否为一个数组
+     */
+    var isArray = Array.isArray;
+    /**
+     * 判断是否为一个对象
+     */
+    var isObject = function (val) {
+        return val !== null && typeof val === 'object';
+    };
+    /**
+     * 对比两个数据是否发生了改变
+     */
+    var hasChanged = function (value, oldValue) {
+        return !Object.is(value, oldValue);
+    };
+
     /******************************************************************************
     Copyright (c) Microsoft Corporation.
 
@@ -54,11 +71,6 @@ var Vue = (function (exports) {
         }
         return to.concat(ar || Array.prototype.slice.call(from));
     }
-
-    /**
-     * 判断是否为一个数组
-     */
-    var isArray = Array.isArray;
 
     var createDep = function (effects) {
         var dep = new Set(effects);
@@ -226,9 +238,104 @@ var Vue = (function (exports) {
         proxyMap.set(target, proxy);
         return proxy;
     }
+    /**
+    * 将指定数据变为 reactive 数据
+    */
+    var toReactive = function (value) {
+        return isObject(value) ? reactive(value) : value;
+    };
+    /**
+    * 判断一个数据是否为 Reactive
+    */
+    // export function isReactive(value): boolean {
+    // return !!(value && value[ReactiveFlags.IS_REACTIVE])
+    // }
+
+    /**
+     *
+     * @param value 响应变量参数 可不传
+     * @returns
+     */
+    function ref(value) {
+        return createRef(value, false);
+    }
+    function createRef(rawVlaue, shallow) {
+        // 如果是ref数据不需要做处理,直接return出去
+        if (isRef(rawVlaue)) {
+            return;
+        }
+        // 重新构建
+        return new RefImpl(rawVlaue, shallow);
+    }
+    var RefImpl = /** @class */ (function () {
+        function RefImpl(value, __v_isShallow) {
+            this.__v_isShallow = __v_isShallow;
+            this.dep = undefined;
+            // 是否为 ref 类型数据的标记
+            this.__v_isRef = true;
+            // 如果 __v_isShallow 为 true，则 value 不会被转化为 reactive 数据，即如果当前 value 为复杂数据类型，则会失去响应性。对应官方文档 shallowRef ：https://cn.vuejs.org/api/reactivity-advanced.html#shallowref
+            this._value = __v_isShallow ? value : toReactive(value);
+            // 原始数据
+            this._rawValue = value;
+        }
+        Object.defineProperty(RefImpl.prototype, "value", {
+            /**
+             * get 语法将对象属性绑定到查询该属性时将被调用的函数。
+             * 即：xxx.value 时触发该函数
+             */
+            get: function () {
+                // 收集依赖
+                trackRefValue(this);
+                return this._value;
+            },
+            set: function (newVal) {
+                /**
+                 * newVal 为新数据
+                 * this._rawValue 为旧数据（原始数据）
+                 * 对比两个数据是否发生了变化
+                 */
+                if (hasChanged(newVal, this._rawValue)) {
+                    // 更新原始数据
+                    this._rawValue = newVal;
+                    // 更新 .value 的值
+                    this._value = toReactive(newVal);
+                    // 触发依赖
+                    triggerRefValue(this);
+                }
+            },
+            enumerable: false,
+            configurable: true
+        });
+        return RefImpl;
+    }());
+    /**
+     * ref 依赖收集
+     * @param ref
+     */
+    function trackRefValue(ref) {
+        if (activeEffect) {
+            trackEffects(ref.dep || (ref.dep = createDep()));
+        }
+    }
+    /**
+     * ref 依赖触发
+     * @param ref
+     */
+    function triggerRefValue(ref) {
+        if (ref.dep) {
+            triggerEffects(ref.dep);
+        }
+    }
+    /**
+     * 指定数据是否为 RefImpl 类型
+     */
+    function isRef(r) {
+        return !!(r && r.__v_isRef === true);
+    }
 
     exports.effect = effect;
     exports.reactive = reactive;
+    exports.ref = ref;
 
     Object.defineProperty(exports, '__esModule', { value: true });
 
