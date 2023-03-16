@@ -17,6 +17,12 @@ var Vue = (function (exports) {
     var hasChanged = function (value, oldValue) {
         return !Object.is(value, oldValue);
     };
+    /**
+     * 是否为一个 function
+     */
+    var isFunction = function (val) {
+        return typeof val === 'function';
+    };
 
     /******************************************************************************
     Copyright (c) Microsoft Corporation.
@@ -92,8 +98,10 @@ var Vue = (function (exports) {
      */
     var activeEffect;
     var ReactiveEffect = /** @class */ (function () {
-        function ReactiveEffect(fn) {
+        function ReactiveEffect(fn, scheduler) {
+            if (scheduler === void 0) { scheduler = null; }
             this.fn = fn;
+            this.scheduler = scheduler;
         }
         ReactiveEffect.prototype.run = function () {
             activeEffect = this;
@@ -160,13 +168,15 @@ var Vue = (function (exports) {
      * @param dep
      */
     function triggerEffects(dep) {
-        var e_1, _a;
+        var e_1, _a, e_2, _b;
         var effects = isArray(dep) ? dep : __spreadArray([], __read(dep), false);
         try {
-            // 依次触发依赖
+            // 依次触发依赖 解决computed死循环问题
             for (var effects_1 = __values(effects), effects_1_1 = effects_1.next(); !effects_1_1.done; effects_1_1 = effects_1.next()) {
                 var effect_1 = effects_1_1.value;
-                triggerEffect(effect_1);
+                if (effect_1.computed) {
+                    triggerEffect(effect_1);
+                }
             }
         }
         catch (e_1_1) { e_1 = { error: e_1_1 }; }
@@ -176,13 +186,34 @@ var Vue = (function (exports) {
             }
             finally { if (e_1) throw e_1.error; }
         }
+        try {
+            // 依次触发依赖
+            for (var effects_2 = __values(effects), effects_2_1 = effects_2.next(); !effects_2_1.done; effects_2_1 = effects_2.next()) {
+                var effect_2 = effects_2_1.value;
+                if (!effect_2.computed) {
+                    triggerEffect(effect_2);
+                }
+            }
+        }
+        catch (e_2_1) { e_2 = { error: e_2_1 }; }
+        finally {
+            try {
+                if (effects_2_1 && !effects_2_1.done && (_b = effects_2.return)) _b.call(effects_2);
+            }
+            finally { if (e_2) throw e_2.error; }
+        }
     }
     /**
      * 触发指定依赖
      * @param effect
      */
     function triggerEffect(effect) {
-        effect.run();
+        if (effect.scheduler) {
+            effect.scheduler();
+        }
+        else {
+            effect.run();
+        }
     }
 
     /**
@@ -313,6 +344,7 @@ var Vue = (function (exports) {
      * @param ref
      */
     function trackRefValue(ref) {
+        // console.log('触发依赖收集')
         if (activeEffect) {
             trackEffects(ref.dep || (ref.dep = createDep()));
         }
@@ -333,6 +365,49 @@ var Vue = (function (exports) {
         return !!(r && r.__v_isRef === true);
     }
 
+    var ComputedRefImpl = /** @class */ (function () {
+        function ComputedRefImpl(getter) {
+            var _this = this;
+            this.dep = undefined;
+            this.__v_isRef = true;
+            /**
+             * 脏：为 false 时，表示需要触发依赖。为 true 时表示需要重新执行 run 方法，获取数据。即：数据脏了
+             */
+            this._dirty = true;
+            this.effect = new ReactiveEffect(getter, function () {
+                if (!_this._dirty) {
+                    _this._dirty = true;
+                    triggerRefValue(_this);
+                }
+            });
+            this.effect.computed = this;
+        }
+        Object.defineProperty(ComputedRefImpl.prototype, "value", {
+            get: function () {
+                trackRefValue(this); // 依赖收集
+                if (this._dirty) { // 只有脏数据的时候才需要更新
+                    this._dirty = false;
+                    this._value = this.effect.run(); // why?
+                }
+                // 返回计算的真实值
+                return this._value;
+            },
+            enumerable: false,
+            configurable: true
+        });
+        return ComputedRefImpl;
+    }());
+    function computed(getOrOptions) {
+        var getter;
+        var onlyGetter = isFunction(getOrOptions);
+        if (onlyGetter) {
+            getter = getOrOptions;
+        }
+        var cRef = new ComputedRefImpl(getter);
+        return cRef;
+    }
+
+    exports.computed = computed;
     exports.effect = effect;
     exports.reactive = reactive;
     exports.ref = ref;

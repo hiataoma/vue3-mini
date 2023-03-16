@@ -1,7 +1,9 @@
 import { isArray } from "@vue/shared"
+import { ComputedRefImpl } from "./computed"
 import { createDep, Dep } from "./dep"
 
 
+export type EffectScheduler = (...args: any[]) => any // why? 
 type keyToDepMap = Map<any, Dep>
 const targetMap = new WeakMap<any, keyToDepMap>() // 目标Map
 
@@ -21,7 +23,12 @@ export function effect<T = any>(fn: () => T) {
  */
 export let activeEffect:ReactiveEffect | undefined 
 export class ReactiveEffect<T = any> {
-    constructor(public fn:()=> T) {}
+    /**
+    * 存在该属性，则表示当前的 effect 为计算属性的 effect
+    */
+    computed?: ComputedRefImpl<T>
+    constructor(public fn:()=> T, public scheduler: EffectScheduler | null = null) {}
+    
     run() {
         activeEffect = this
         return this.fn()
@@ -91,9 +98,17 @@ export function trigger(target:object, key: unknown , newValue: unknown) {
  */
 export function triggerEffects(dep: Dep) {
     const effects = isArray(dep) ? dep: [...dep]
+    // 依次触发依赖 解决computed死循环问题
+    for(const effect of effects) {
+        if(effect.computed) {
+            triggerEffect(effect)
+        }
+    } 
     // 依次触发依赖
     for(const effect of effects) {
-        triggerEffect(effect)
+        if(!effect.computed) {
+            triggerEffect(effect)
+        }
     } 
 }
 
@@ -102,5 +117,9 @@ export function triggerEffects(dep: Dep) {
  * @param effect 
  */
 export function triggerEffect(effect: ReactiveEffect) {
-    effect.run()
+    if(effect.scheduler) {
+        effect.scheduler()
+    } else {
+        effect.run()
+    }
 }

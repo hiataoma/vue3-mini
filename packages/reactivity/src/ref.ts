@@ -77,6 +77,7 @@ class RefImpl<T> {
  */
 
 export function trackRefValue(ref) {
+    // console.log('触发依赖收集')
     if(activeEffect) {
         trackEffects(ref.dep || (ref.dep = createDep()))
     }
