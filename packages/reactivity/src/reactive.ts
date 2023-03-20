@@ -1,5 +1,9 @@
  import { isObject } from '@vue/shared'
 import { mutableHandlers } from './baseHandlers'
+
+export const enum ReactiveFlags {
+	IS_REACTIVE = '__v_isReactive'
+}
  
  /**
   * WeakMap key 类型是object 指向obj
@@ -22,6 +26,9 @@ import { mutableHandlers } from './baseHandlers'
         return existingProxy
     }
     const proxy = new Proxy(target, baseHandlers)
+
+    proxy[ReactiveFlags.IS_REACTIVE] = true
+
  
     proxyMap.set(target,proxy)
 
@@ -37,6 +44,6 @@ export const toReactive = <T extends unknown>(value: T): T =>
 /**
 * 判断一个数据是否为 Reactive
 */
-// export function isReactive(value): boolean {
-// return !!(value && value[ReactiveFlags.IS_REACTIVE])
-// }
+export function isReactive(value): boolean {
+return !!(value && value[ReactiveFlags.IS_REACTIVE])
+}

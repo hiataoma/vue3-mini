@@ -27,7 +27,7 @@ const set = createSetter()
 function createSetter() {
     return function get(target:object, key: string | symbol, value: unknown, reactiver: object) {
         let result = Reflect.set(target, key, value, reactiver)
-        trigger(target, key, value)
+        trigger(target, key)
         return result
     }
 }

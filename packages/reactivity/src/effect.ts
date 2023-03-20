@@ -1,4 +1,4 @@
-import { isArray } from "@vue/shared"
+import { extend, isArray } from "@vue/shared"
 import { ComputedRefImpl } from "./computed"
 import { createDep, Dep } from "./dep"
 
@@ -10,14 +10,31 @@ const targetMap = new WeakMap<any, keyToDepMap>() // 目标Map
 
 /**
  * 
+ */
+export interface ReactiveEffectOptions {
+    lazy?: boolean
+    scheduler?: EffectScheduler
+  }
+
+/**
+ * 
  * @param fn 执行函数
  */
-export function effect<T = any>(fn: () => T) {
+export function effect<T = any>(fn: () => T, options?: ReactiveEffectOptions) {
+    // 生成 ReactiveEffect 实例
     const _effect = new ReactiveEffect(fn)
-    // 第一次fn函数执行
-    _effect.run()
-}
 
+    // 存在 options，则合并配置对象
+    if(options) {
+        extend(_effect, options)
+    }
+
+    if(!options || !options.lazy) {
+        // 执行 run 函数
+        _effect.run()
+    }
+}
+  
 /**
  * 
  */
@@ -32,6 +49,9 @@ export class ReactiveEffect<T = any> {
     run() {
         activeEffect = this
         return this.fn()
+    }
+    stop() {
+        
     }
 }
 
@@ -72,7 +92,7 @@ export function trackEffects(dep: Dep) {
  * @param key 
  * @param newValue 
  */
-export function trigger(target:object, key: unknown , newValue: unknown) {
+export function trigger(target:object, key: unknown) {
     const depsMap = targetMap.get(target)
     if(!depsMap) {
         return
@@ -117,6 +137,7 @@ export function triggerEffects(dep: Dep) {
  * @param effect 
  */
 export function triggerEffect(effect: ReactiveEffect) {
+    // console.log("triggerEffect", effect)
     if(effect.scheduler) {
         effect.scheduler()
     } else {
