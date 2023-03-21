@@ -20,9 +20,9 @@ const obj = reactive({
 
 watch(obj, (value, oldValue) => {
     console.log('watch 监听输出 ')
-    console.log(value)
+    console.log(value.name)
 }, {
-    immediate: true
+    // immediate: true
 })
 
 setTimeout(() => {
